@@ -33,6 +33,17 @@ npm run dev
 הפרונט זמין ב-[http://localhost:5173](http://localhost:5173)  
 ה-API זמין ב-[http://localhost:3001](http://localhost:3001)
 
+## חשבון מפתחים (ברירת מחדל)
+
+נוצר אוטומטית בהפעלת השרת — אין צורך בהרשמה:
+
+| | |
+|---|---|
+| **אימייל** | `dev@sammy.local` |
+| **סיסמה** | `dev123456` |
+
+התחברות: [http://localhost:5173/login](http://localhost:5173/login)
+
 ## קובץ הגדרות
 
 הגדרות האפליקציה נמצאות ב-[`config.json`](./config.json):

@@ -108,6 +108,10 @@ You should see output similar to:
 ```
 [api] Sammy API running at http://0.0.0.0:3001
 [api] Dev OTP code: 123456
+[api] --- Dev login (skip registration) ---
+[api]   Email:    dev@sammy.local
+[api]   Password: dev123456
+[api] -------------------------------------
 [web] (Vite dev server starting...)
 ```
 
@@ -116,6 +120,23 @@ Open the app in your browser:
 **http://localhost:5173**
 
 Keep the terminal open while you use the app. Press `Ctrl+C` to stop both servers.
+
+---
+
+## Default dev account (fastest way in)
+
+For local development, a pre-seeded account is created automatically on first server start. **No registration or OTP needed.**
+
+| Field | Value |
+|-------|-------|
+| **Email** | `dev@sammy.local` |
+| **Password** | `dev123456` |
+
+1. Go to **http://localhost:5173/login**
+2. Enter the email and password above
+3. Click **"התחברות"** (Log in)
+
+The account is already verified and has a completed student profile. Credentials are defined in `config.json` under `auth.devUser` and printed in the API terminal when the server starts.
 
 ---
 
@@ -196,7 +217,12 @@ All local settings live in **`config.json`** at the project root. You do **not**
   "auth": {
     "jwtSecret": "sammy-local-dev-secret-change-in-production",
     "jwtExpiresIn": "7d",
-    "devOtp": "123456"
+    "devOtp": "123456",
+    "devUser": {
+      "email": "dev@sammy.local",
+      "password": "dev123456",
+      "fullName": "Dev User"
+    }
   },
   "uploads": { "dir": "./uploads" },
   "app": { "name": "סמ\"י - סיכום מידע", "title": "Sammy" }
@@ -270,8 +296,8 @@ Complete the OTP step during registration before trying to log in.
 - [ ] `npm run db:up` — PostgreSQL container running
 - [ ] `npm run dev` — API + frontend running
 - [ ] Browser open at http://localhost:5173
-- [ ] Registered with OTP code `123456`
-- [ ] Profile completed → dashboard visible
+- [ ] Logged in with dev account **or** registered with OTP `123456`
+- [ ] Dashboard visible
 
 ---
 

@@ -4,6 +4,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { config } from './config.js';
 import { initDb } from './db.js';
+import { seedDevUser, logDevCredentials } from './seed.js';
 import authRoutes from './routes/auth.js';
 import entityRoutes from './routes/entities.js';
 import integrationRoutes, { uploadsDir } from './routes/integrations.js';
@@ -25,11 +26,13 @@ app.use('/api/integrations', integrationRoutes);
 
 async function start() {
   await initDb();
+  await seedDevUser();
   const { port, host } = config.server;
   app.listen(port, host, () => {
     console.log(`Sammy API running at http://${host}:${port}`);
     console.log(`Config loaded from ${path.join(__dirname, '..', 'config.json')}`);
     console.log(`Dev OTP code: ${config.auth.devOtp}`);
+    logDevCredentials();
   });
 }
 

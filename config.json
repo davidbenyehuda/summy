@@ -13,7 +13,12 @@
   "auth": {
     "jwtSecret": "sammy-local-dev-secret-change-in-production",
     "jwtExpiresIn": "7d",
-    "devOtp": "123456"
+    "devOtp": "123456",
+    "devUser": {
+      "email": "dev@sammy.local",
+      "password": "dev123456",
+      "fullName": "Dev User"
+    }
   },
   "uploads": {
     "dir": "./uploads"
