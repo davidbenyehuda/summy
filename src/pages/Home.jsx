@@ -58,9 +58,13 @@ export default function Home() {
     setQuizSubmitted(true);
   };
 
-  const score = quiz.reduce((acc, q, i) => {
-    return quizAnswers[i] === q.correct ? acc + 1 : acc;
-  }, 0);
+  const hasMultipleChoiceQuiz = quiz.some((q) => q.options?.length);
+
+  const score = hasMultipleChoiceQuiz
+    ? quiz.reduce((acc, q, i) => {
+        return quizAnswers[i] === q.correct ? acc + 1 : acc;
+      }, 0)
+    : 0;
 
   return (
     <div
@@ -153,6 +157,7 @@ export default function Home() {
                                 {i + 1}. {q.question}
                               </p>
 
+                              {q.options?.length > 0 && (
                               <div className="space-y-2">
                                 {q.options.map((opt, j) => (
                                   <button
@@ -174,17 +179,20 @@ export default function Home() {
                                   </button>
                                 ))}
                               </div>
+                              )}
                             </div>
                           ))}
 
+                          {hasMultipleChoiceQuiz && (
                           <button
                             onClick={submitQuiz}
                             className="bg-white text-black px-5 py-2 rounded-xl"
                           >
                             הגש מבחן
                           </button>
+                          )}
 
-                          {quizSubmitted && (
+                          {hasMultipleChoiceQuiz && quizSubmitted && (
                             <div className="bg-green-500/10 border border-green-500/30 p-5 rounded-xl">
                               <h3 className="text-lg font-semibold mb-2">
                                 הציון שלך: {score} / {quiz.length}
