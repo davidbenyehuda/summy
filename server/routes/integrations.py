@@ -85,7 +85,11 @@ async def analyze_uploaded_document(
         destination.write_bytes(in_memory.data)
         file_url = f"/uploads/{stored_name}"
 
-        output = analyze_document(upload=in_memory)
+        try:
+            output = analyze_document(upload=in_memory)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
         result_url = _save_analysis_result(
             user_id=user_id,
             file_url=file_url,

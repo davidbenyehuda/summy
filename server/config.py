@@ -2,17 +2,17 @@ import json
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config.json"
 
-_env_path = ROOT / ".env"
-if _env_path.exists():
-    for line in _env_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        os.environ.setdefault(key.strip(), value.strip().strip("\"'"))
+# Load env files (later files override earlier ones).
+# .env.example is a dev fallback when .env has not been created yet.
+for env_name in (".env.example", ".env", ".env.local"):
+    env_path = ROOT / env_name
+    if env_path.is_file():
+        load_dotenv(env_path, override=env_name != ".env.example")
 
 with CONFIG_PATH.open(encoding="utf-8") as f:
     config = json.load(f)
@@ -34,7 +34,8 @@ def get_llm_config() -> dict:
     api_key = os.environ.get("GEMINI_API_KEY", "").strip()
     if not api_key:
         raise RuntimeError(
-            "GEMINI_API_KEY is not set. Add it to your environment or a local .env file."
+            "GEMINI_API_KEY is not set. Copy .env.example to .env and set your key, "
+            "or export GEMINI_API_KEY in the shell."
         )
     return {
         "api_key": api_key,
