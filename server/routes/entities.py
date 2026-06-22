@@ -33,6 +33,7 @@ def _format_summary(summary: SummaryHistory) -> dict:
         "file_url": summary.file_url,
         "title": summary.title,
         "summary_text": summary.summary_text,
+        "result_url": summary.result_url,
         "created_date": summary.created_date.isoformat() if summary.created_date else None,
     }
 
@@ -139,6 +140,7 @@ def create_summary_history(
         file_url=body.get("file_url"),
         title=body.get("title"),
         summary_text=body.get("summary_text"),
+        result_url=body.get("result_url"),
     )
     db.add(summary)
     db.commit()

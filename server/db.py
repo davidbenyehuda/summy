@@ -1,6 +1,6 @@
 from collections.abc import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from .config import get_db_config
@@ -26,6 +26,11 @@ def init_db() -> None:
     from . import models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
+    with engine.connect() as conn:
+        conn.execute(
+            text("ALTER TABLE summary_history ADD COLUMN IF NOT EXISTS result_url TEXT")
+        )
+        conn.commit()
 
 
 def get_db() -> Generator[Session, None, None]:

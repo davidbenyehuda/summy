@@ -30,4 +30,4 @@ uploads
 
 .env
 server/.venv
-server/__pycache__
+server/**/__pycache__
