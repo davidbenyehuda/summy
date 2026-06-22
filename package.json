@@ -14,6 +14,7 @@
     "dev:server:unix": "server/.venv/bin/python -m server.run",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
+    "uploads:clean": "node scripts/clean-uploads.js",
     "build": "vite build",
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",

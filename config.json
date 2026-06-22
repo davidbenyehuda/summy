@@ -26,5 +26,11 @@
   "app": {
     "name": "סמ\"י - סיכום מידע",
     "title": "Sammy"
+  },
+  "llm": {
+    "model": "gemini-2.5-flash",
+    "analyzePrompt": "Analyze the content of this file and provide a structured summary, key insights, and suggestions for further research. Focus on extracting the most relevant information that would be useful for a student learning about the topic. If the file is an image or video, describe its content in detail. If it's audio, provide a transcript and summarize the main points. Organize the output into sections with clear headings.",
+    "maxWaitSeconds": 120,
+    "retryDelaySeconds": 5
   }
 }

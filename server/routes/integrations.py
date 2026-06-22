@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from ..config import ROOT, config
 from ..deps import get_current_user_id
 from ..schemas.document_analysis import AnalyzeDocumentResponse
+from ..schemas.uploaded_file import InMemoryUpload
 from ..services.llm import analyze_document
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
@@ -70,26 +71,40 @@ async def analyze_uploaded_document(
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file uploaded")
 
-    safe_name = _safe_filename(file.filename)
-    stored_name = f"{int(time.time() * 1000)}-{safe_name}"
-    destination = uploads_dir / stored_name
-    content = await file.read()
-    destination.write_bytes(content)
-    file_url = f"/uploads/{stored_name}"
-
-    output = analyze_document(filename=file.filename, file_path=destination)
-    result_url = _save_analysis_result(
-        user_id=user_id,
-        file_url=file_url,
-        output=output,
+    raw_content = await file.read()
+    in_memory = InMemoryUpload(
+        filename=file.filename,
+        data=raw_content,
+        content_type=file.content_type,
     )
 
-    return AnalyzeDocumentResponse(
-        file_url=file_url,
-        result_url=result_url,
-        title=output.title,
-        output=output,
-    )
+    try:
+        safe_name = _safe_filename(file.filename)
+        stored_name = f"{int(time.time() * 1000)}-{safe_name}"
+        destination = uploads_dir / stored_name
+        destination.write_bytes(in_memory.data)
+        file_url = f"/uploads/{stored_name}"
+
+        try:
+            output = analyze_document(upload=in_memory)
+        except RuntimeError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+        result_url = _save_analysis_result(
+            user_id=user_id,
+            file_url=file_url,
+            output=output,
+        )
+
+        return AnalyzeDocumentResponse(
+            file_url=file_url,
+            result_url=result_url,
+            title=output.title,
+            output=output,
+        )
+    finally:
+        in_memory.clear()
+        del raw_content
 
 
 @router.post("/llm")
