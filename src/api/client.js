@@ -150,17 +150,10 @@ const entities = new Proxy(
 
 const integrations = {
   Core: {
-    async UploadFile({ file }) {
+    async AnalyzeDocument({ file }) {
       const form = new FormData();
       form.append('file', file);
-      return apiFetch('/integrations/upload', { method: 'POST', body: form });
-    },
-
-    async ExtractDataFromUploadedFile(payload) {
-      return apiFetch('/integrations/extract', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      });
+      return apiFetch('/integrations/analyze', { method: 'POST', body: form });
     },
 
     async InvokeLLM({ prompt }) {

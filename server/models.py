@@ -96,6 +96,7 @@ class SummaryHistory(Base):
     file_url: Mapped[str | None] = mapped_column(Text)
     title: Mapped[str | None] = mapped_column(Text)
     summary_text: Mapped[str | None] = mapped_column(Text)
+    result_url: Mapped[str | None] = mapped_column(Text)
     created_date: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

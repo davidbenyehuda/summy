@@ -1,5 +1,7 @@
+import json
 import re
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -7,11 +9,15 @@ from pydantic import BaseModel
 
 from ..config import ROOT, config
 from ..deps import get_current_user_id
+from ..schemas.document_analysis import AnalyzeDocumentResponse
+from ..services.llm import analyze_document
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
 uploads_dir = (ROOT / config["uploads"]["dir"]).resolve()
 uploads_dir.mkdir(parents=True, exist_ok=True)
+results_dir = uploads_dir / "results"
+results_dir.mkdir(parents=True, exist_ok=True)
 
 GLOSSARY = {
     "גלוקוז": "גלוקוז הוא סוכר פשוט שהצמח מייצר בפוטוסינתזה ומשמש כמקור האנרגיה העיקרי לצמיחה.",
@@ -25,65 +31,65 @@ GLOSSARY = {
 }
 
 
-class ExtractBody(BaseModel):
-    file_url: str | None = None
-
-
 class LlmBody(BaseModel):
     prompt: str | None = None
 
 
-@router.post("/upload")
-async def upload_file(
+def _safe_filename(name: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9._-]", "_", name)
+
+
+def _save_analysis_result(
+    *,
+    user_id: str,
+    file_url: str,
+    output,
+) -> str:
+    user_results_dir = results_dir / user_id
+    user_results_dir.mkdir(parents=True, exist_ok=True)
+    result_name = f"{int(time.time() * 1000)}-{_safe_filename(output.title)}.json"
+    result_path = user_results_dir / result_name
+    payload = {
+        "title": output.title,
+        "file_url": file_url,
+        "output": output.model_dump(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    result_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return f"/uploads/results/{user_id}/{result_name}"
+
+
+@router.post("/analyze", response_model=AnalyzeDocumentResponse)
+async def analyze_uploaded_document(
     file: UploadFile = File(...),
-    _user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
     if not file.filename:
         raise HTTPException(status_code=400, detail="No file uploaded")
 
-    safe_name = re.sub(r"[^a-zA-Z0-9._-]", "_", file.filename)
-    filename = f"{int(time.time() * 1000)}-{safe_name}"
-    destination = uploads_dir / filename
+    safe_name = _safe_filename(file.filename)
+    stored_name = f"{int(time.time() * 1000)}-{safe_name}"
+    destination = uploads_dir / stored_name
     content = await file.read()
     destination.write_bytes(content)
-    return {"file_url": f"/uploads/{filename}"}
+    file_url = f"/uploads/{stored_name}"
 
+    output = analyze_document(filename=file.filename, file_path=destination)
+    result_url = _save_analysis_result(
+        user_id=user_id,
+        file_url=file_url,
+        output=output,
+    )
 
-@router.post("/extract")
-def extract_data(
-    body: ExtractBody,
-    _user_id: str = Depends(get_current_user_id),
-):
-    file_name = (body.file_url or "").split("/")[-1] or "document"
-    title = re.sub(r"\.[^/.]+$", "", file_name)
-    return {
-        "status": "success",
-        "output": {
-            "sections": [
-                {
-                    "heading": f"1. סיכום: {title}",
-                    "body": (
-                        "מסמך זה עוסק בנושאי לימוד מרכזיים. התוכן הועלה בהצלחה "
-                        "וניתן לעבור עליו בעזרת עוזר ה-AI בצד ימין."
-                    ),
-                },
-                {
-                    "heading": "2. נקודות עיקריות",
-                    "body": (
-                        "המסמך מכיל מושגים חשובים, הגדרות ודוגמאות. "
-                        "השתמשו במונחים המסומנים לקבלת הסברים מותאמים."
-                    ),
-                },
-                {
-                    "heading": "3. המלצות ללמידה",
-                    "body": (
-                        "קראו את הסיכום, נסו את טאב המשחק, והשוו בין הסבר פשוט "
-                        "לאנלוגיה כדי לחזק את ההבנה."
-                    ),
-                },
-            ],
-        },
-    }
+    return AnalyzeDocumentResponse(
+        file_url=file_url,
+        result_url=result_url,
+        title=output.title,
+        output=output,
+    )
 
 
 @router.post("/llm")
