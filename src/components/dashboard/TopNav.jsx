@@ -1,4 +1,4 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
+import db from '@/api/client';
 
 import React, { useState, useEffect } from "react";
 import { Bell, User, LogOut, ChevronDown, Clock } from "lucide-react";
@@ -20,7 +20,7 @@ export default function TopNav() {
     <header className="h-14 border-b border-border bg-card/80 backdrop-blur-md flex items-center justify-between px-5 shrink-0">
       {/* Logo — right side (RTL) */}
       <div className="flex items-center gap-2.5">
-        <img src="https://media.db.com/images/public/6a2ef90d221e3790adb700f6/77c33375d_SAMMY.webp" alt="Sammy" className="w-9 h-9 object-contain" />
+        <img src="/sammy.svg" alt="Sammy" className="w-9 h-9 object-contain" />
         <span className="text-sm font-bold text-foreground font-heading tracking-tight">סמ"י - סיכום מידע</span>
       </div>
 

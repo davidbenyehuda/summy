@@ -1,41 +1,57 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
+# סמ"י - סיכום מידע (Sammy)
 
-**Welcome to your Base44 project** 
+אפליקציית למידה חכמה לסיכום מסמכים עם עוזר AI.
 
-**About**
+**מדריך מלא להרצה מקומית והרשמה:** [docs/LOCAL_SETUP.md](./docs/LOCAL_SETUP.md)  
+*(Share this guide with teammates who need to run the project locally.)*
 
-View and Edit  your app on [db.com](http://db.com) 
+## דרישות
 
-This project contains everything you need to run your app locally.
+- Node.js 18+
+- Docker (למסד הנתונים PostgreSQL)
 
-**Edit the code in your local development environment**
+## התקנה והרצה
 
-Any change pushed to the repo will also be reflected in the Base44 Builder.
+1. התקנת תלויות:
 
-**Prerequisites:** 
-
-1. Clone the repository using the project's Git URL 
-2. Navigate to the project directory
-3. Install dependencies: `npm install`
-4. Create an `.env.local` file and set the right environment variables
-
-```
-VITE_BASE44_APP_ID=your_app_id
-VITE_BASE44_APP_BASE_URL=your_backend_url
-
-e.g.
-VITE_BASE44_APP_ID=cbef744a8545c389ef439ea6
-VITE_BASE44_APP_BASE_URL=https://my-to-do-list-81bfaad7.db.app
+```bash
+npm install
 ```
 
-Run the app: `npm run dev`
+2. הפעלת מסד הנתונים:
 
-**Publish your changes**
+```bash
+npm run db:up
+```
 
-Open [db.com](http://db.com) and click on Publish.
+3. הרצת האפליקציה (API + פרונט):
 
-**Docs & Support**
+```bash
+npm run dev
+```
 
-Documentation: [https://docs.db.com/Integrations/Using-GitHub](https://docs.db.com/Integrations/Using-GitHub)
+הפרונט זמין ב-[http://localhost:5173](http://localhost:5173)  
+ה-API זמין ב-[http://localhost:3001](http://localhost:3001)
 
-Support: [https://app.db.com/support](https://app.db.com/support)
+## קובץ הגדרות
+
+הגדרות האפליקציה נמצאות ב-[`config.json`](./config.json):
+
+- `server` — פורט ו-host של ה-API
+- `database` — חיבור PostgreSQL
+- `auth` — JWT וקוד OTP לפיתוח (`devOtp`: `123456`)
+- `uploads` — תיקיית קבצים מועלים
+- `app` — שם האפליקציה
+
+## הרשמה בפיתוח
+
+1. הירשם עם אימייל וסיסמה
+2. השתמש בקוד OTP מהקונסול של השרת (ברירת מחדל: `123456`)
+3. השלם את פרופיל הסטודנט
+
+## פקודות נוספות
+
+```bash
+npm run build      # בניית פרונט לייצור
+npm run db:down    # עצירת PostgreSQL
+```

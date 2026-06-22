@@ -1,0 +1,25 @@
+{
+  "server": {
+    "port": 3001,
+    "host": "0.0.0.0"
+  },
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "user": "sammy",
+    "password": "sammy_dev",
+    "database": "sammy"
+  },
+  "auth": {
+    "jwtSecret": "sammy-local-dev-secret-change-in-production",
+    "jwtExpiresIn": "7d",
+    "devOtp": "123456"
+  },
+  "uploads": {
+    "dir": "./uploads"
+  },
+  "app": {
+    "name": "סמ\"י - סיכום מידע",
+    "title": "Sammy"
+  }
+}

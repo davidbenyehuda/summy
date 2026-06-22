@@ -1,7 +1,5 @@
-const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
-
 import React from "react";
-const SAMMY_URL = "https://media.db.com/images/public/6a2ef90d221e3790adb700f6/77c33375d_SAMMY.webp";
+const SAMMY_URL = "/sammy.svg";
 
 export default function AuthShell({ children, step, totalSteps, stepLabel }) {
   return (
