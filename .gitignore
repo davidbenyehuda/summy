@@ -29,4 +29,5 @@ uploads
 *.sw?
 
 .env
-.vite
+server/.venv
+server/__pycache__
