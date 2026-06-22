@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "concurrently -n api,web -c blue,green \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "vite",
-    "dev:server": "node server/index.js",
+    "dev:server": "server/.venv/bin/python -m server.run",
+    "setup:server": "python3.10 -m venv server/.venv && server/.venv/bin/pip install -r server/requirements.txt",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "build": "vite build",

@@ -11,7 +11,8 @@ This guide explains how to run the app on your machine and create an account. Sh
 | Service | URL | Purpose |
 |---------|-----|---------|
 | Frontend (web UI) | http://localhost:5173 | React app in the browser |
-| Backend (API) | http://localhost:3001 | Auth, database, file uploads |
+| Backend (API) | http://localhost:3001 | FastAPI auth, database, file uploads |
+| API docs (Swagger) | http://localhost:3001/docs | Interactive API documentation |
 | Database | `localhost:5432` | PostgreSQL (via Docker) |
 
 ---
@@ -26,10 +27,13 @@ Install these before you start:
 2. **npm** (comes with Node.js)  
    Check: `npm -v`
 
-3. **Docker Desktop** (or Docker Engine + Docker Compose)  
+3. **Python 3.10**  
+   Check: `python3.10 --version`
+
+4. **Docker Desktop** (or Docker Engine + Docker Compose)  
    Check: `docker --version` and `docker compose version`
 
-4. **Git** (to clone the repository)  
+5. **Git** (to clone the repository)  
    Check: `git --version`
 
 > **Note:** Docker is required for the database. The app does not include a built-in database — PostgreSQL runs in a Docker container.
@@ -57,7 +61,19 @@ From the project root (`app/`):
 npm install
 ```
 
-This downloads all frontend and backend packages. It may take 1–2 minutes.
+This downloads all frontend packages. It may take 1–2 minutes.
+
+Install Python API dependencies:
+
+```bash
+npm run setup:server
+```
+
+Or manually:
+
+```bash
+python3.10 -m pip install -r server/requirements.txt
+```
 
 ---
 
@@ -107,6 +123,7 @@ You should see output similar to:
 
 ```
 [api] Sammy API running at http://0.0.0.0:3001
+[api] Swagger docs at http://0.0.0.0:3001/docs
 [api] Dev OTP code: 123456
 [api] --- Dev login (skip registration) ---
 [api]   Email:    dev@sammy.local
@@ -237,6 +254,7 @@ Change `server.port` if port `3001` is already in use. Change `auth.devOtp` if y
 
 | Command | Description |
 |---------|-------------|
+| `npm run setup:server` | Install Python API dependencies |
 | `npm run dev` | Start API + frontend |
 | `npm run dev:server` | Start API only |
 | `npm run dev:client` | Start frontend only |
