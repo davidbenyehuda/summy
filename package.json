@@ -10,6 +10,7 @@
     "setup:server": "python3.10 -m venv server/.venv && server/.venv/bin/pip install -r server/requirements.txt",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
+    "uploads:clean": "node scripts/clean-uploads.js",
     "build": "vite build",
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",
