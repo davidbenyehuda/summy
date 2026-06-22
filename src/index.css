@@ -1,0 +1,80 @@
+@import url('https://fonts.googleapis.com/css2?family=Assistant:wght@300;400;500;600;700;800&family=Rubik:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 200 60% 97%;
+    --foreground: 220 20% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 15%;
+    --primary: 27 95% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 196 80% 88%;
+    --secondary-foreground: 196 60% 25%;
+    --muted: 196 40% 92%;
+    --muted-foreground: 220 10% 50%;
+    --accent: 46 96% 56%;
+    --accent-foreground: 220 20% 15%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 196 30% 85%;
+    --input: 196 30% 85%;
+    --ring: 27 95% 55%;
+    --chart-1: 27 95% 55%;
+    --chart-2: 200 80% 55%;
+    --chart-3: 45 95% 58%;
+    --chart-4: 160 60% 45%;
+    --chart-5: 340 75% 55%;
+    --radius: 0.75rem;
+    --font-heading: 'Rubik', 'Assistant', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Assistant', 'Rubik', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Rubik', 'Assistant', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 20% 15%;
+    --sidebar-primary: 27 95% 55%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 200 80% 92%;
+    --sidebar-accent-foreground: 220 20% 15%;
+    --sidebar-border: 220 15% 88%;
+    --sidebar-ring: 27 95% 55%;
+  }
+
+  .dark {
+    --background: 200 60% 97%;
+    --foreground: 220 20% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 15%;
+    --primary: 27 95% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 196 80% 88%;
+    --secondary-foreground: 196 60% 25%;
+    --muted: 196 40% 92%;
+    --muted-foreground: 220 10% 50%;
+    --accent: 46 96% 56%;
+    --accent-foreground: 220 20% 15%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 196 30% 85%;
+    --input: 196 30% 85%;
+    --ring: 27 95% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body;
+    direction: rtl;
+  }
+}

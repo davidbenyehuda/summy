@@ -1,0 +1,94 @@
+const db = globalThis.__B44_DB__ || { auth:{ isAuthenticated: async()=>false, me: async()=>null }, entities:new Proxy({}, { get:()=>({ filter:async()=>[], get:async()=>null, create:async()=>({}), update:async()=>({}), delete:async()=>({}) }) }), integrations:{ Core:{ UploadFile:async()=>({ file_url:'' }) } } };
+
+import React, { useState, useEffect } from "react";
+
+import TopNav from "@/components/dashboard/TopNav";
+import { FileText, Trash2, Clock, ChevronLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
+
+export default function History() {
+  const [summaries, setSummaries] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState(null);
+
+  useEffect(() => {
+    const load = async () => {
+      const me = await db.auth.me();
+      const results = await db.entities.SummaryHistory.filter({ user_id: me.id }, "-created_date", 50);
+      setSummaries(results);
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  const handleDelete = async (id) => {
+    await db.entities.SummaryHistory.delete(id);
+    setSummaries(prev => prev.filter(s => s.id !== id));
+  };
+
+  return (
+    <div className="h-screen flex flex-col bg-background overflow-hidden">
+      <TopNav />
+      <div className="flex-1 overflow-y-auto p-5 max-w-3xl mx-auto w-full">
+        <div className="flex items-center gap-2 mb-6">
+          <Clock className="w-5 h-5 text-primary" />
+          <h1 className="text-xl font-bold text-foreground font-heading">היסטוריית סיכומים</h1>
+        </div>
+
+        {loading && (
+          <div className="flex justify-center py-16">
+            <div className="w-7 h-7 border-4 border-border border-t-primary rounded-full animate-spin" />
+          </div>
+        )}
+
+        {!loading && summaries.length === 0 && (
+          <div className="text-center py-16 text-muted-foreground">
+            <FileText className="w-12 h-12 mx-auto mb-3 opacity-30" />
+            <p className="text-sm">עוד לא יצרת סיכומים</p>
+            <Link to="/">
+              <Button className="mt-4 gap-1.5" size="sm">
+                התחל לסכם <ChevronLeft className="w-4 h-4" />
+              </Button>
+            </Link>
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {summaries.map(s => (
+            <div key={s.id} className="bg-card border border-border rounded-xl p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                    <FileText className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm text-foreground truncate">{s.title || s.file_name || "סיכום ללא שם"}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {new Date(s.created_date).toLocaleDateString("he-IL", { day: "numeric", month: "long", year: "numeric" })}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                    onClick={() => setExpanded(expanded === s.id ? null : s.id)}>
+                    <ChevronLeft className={`w-4 h-4 transition-transform ${expanded === s.id ? "rotate-90" : "-rotate-90"}`} />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    onClick={() => handleDelete(s.id)}>
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+              {expanded === s.id && s.summary_text && (
+                <div className="mt-3 pt-3 border-t border-border text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">
+                  {s.summary_text}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
