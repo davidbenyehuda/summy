@@ -14,8 +14,10 @@ class QuizQuestion(BaseModel):
 
 class ResearchItem(BaseModel):
     title: str
-    text: str = Field(description="Brief Hebrew explanation of what the source covers")
-    url: str = Field(description="Source URL")
+    text: str = Field(description="Detailed Hebrew explanation of what to learn and why it matters")
+    url: str = Field(default="", description="Source URL")
+    concept: str = Field(default="", description="Key concept or topic the student should explore")
+    is_new: bool = Field(default=False, description="True when added after a chat follow-up")
 
 
 class FurtherResearch(BaseModel):

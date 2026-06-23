@@ -43,6 +43,7 @@ def get_llm_config() -> dict:
         "analyze_prompt": llm.get("analyzePrompt", ""),
         "research_prompt": llm.get("researchPrompt", ""),
         "chat_prompt": llm.get("chatPrompt", ""),
+        "chat_research_prompt": llm.get("chatResearchPrompt", ""),
         "max_wait_seconds": int(llm.get("maxWaitSeconds", 120)),
         "retry_delay_seconds": int(llm.get("retryDelaySeconds", 5)),
     }

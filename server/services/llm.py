@@ -61,7 +61,7 @@ def analyze_document(*, upload: InMemoryUpload) -> DocumentAnalysisOutput:
             max_wait=llm["max_wait_seconds"],
             delay=llm["retry_delay_seconds"],
         )
-        research_items = _parse_research_response(research_response)
+        research_items = _parse_research_response(research_response, max_items=3)
 
         return _build_analysis_output(
             title,
@@ -144,7 +144,7 @@ def _is_valid_quiz(questions: list[QuizQuestion]) -> bool:
     return len(questions) >= 4 and all(len(question.options) == 4 for question in questions)
 
 
-def _grounding_items_from_metadata(response) -> list[ResearchItem]:
+def _grounding_items_from_metadata(response, *, is_new: bool = False) -> list[ResearchItem]:
     items: list[ResearchItem] = []
     seen: set[str] = set()
 
@@ -167,13 +167,19 @@ def _grounding_items_from_metadata(response) -> list[ResearchItem]:
                     title=site_title,
                     text="מקור שנמצא בחיפוש באינטרנט.",
                     url=uri,
+                    is_new=is_new,
                 )
             )
 
     return items
 
 
-def _parse_research_response(response) -> list[ResearchItem]:
+def _parse_research_response(
+    response,
+    *,
+    is_new: bool = False,
+    max_items: int | None = None,
+) -> list[ResearchItem]:
     response_text = response.text or ""
     items: list[ResearchItem] = []
 
@@ -188,44 +194,111 @@ def _parse_research_response(response) -> list[ResearchItem]:
             title = _extract_tag(block, "title")
             text = _extract_tag(block, "text")
             url = _extract_tag(block, "url")
+            concept = _extract_tag(block, "concept")
             if title or text or url:
                 items.append(
                     ResearchItem(
                         title=title or "מקור",
                         text=text or "מקור רלוונטי לנושא.",
                         url=url,
+                        concept=concept,
+                        is_new=is_new,
                     )
                 )
 
-    grounding_items = _grounding_items_from_metadata(response)
+    grounding_items = _grounding_items_from_metadata(response, is_new=is_new)
 
     if not items:
-        return grounding_items
-
-    merged: list[ResearchItem] = []
-    for index, item in enumerate(items):
-        url = item.url
-        if not url and index < len(grounding_items):
-            url = grounding_items[index].url
-        if not url:
-            for grounding in grounding_items:
-                if grounding.title.lower() == item.title.lower():
-                    url = grounding.url
-                    break
-        merged.append(
-            ResearchItem(
-                title=item.title,
-                text=item.text,
-                url=url,
+        merged = grounding_items
+    else:
+        merged: list[ResearchItem] = []
+        for index, item in enumerate(items):
+            url = item.url
+            if not url and index < len(grounding_items):
+                url = grounding_items[index].url
+            if not url:
+                for grounding in grounding_items:
+                    if grounding.title.lower() == item.title.lower():
+                        url = grounding.url
+                        break
+            merged.append(
+                ResearchItem(
+                    title=item.title,
+                    text=item.text,
+                    url=url,
+                    concept=item.concept,
+                    is_new=item.is_new,
+                )
             )
-        )
 
-    used_urls = {item.url for item in merged if item.url}
-    for grounding in grounding_items:
-        if grounding.url not in used_urls:
-            merged.append(grounding)
+        used_urls = {item.url for item in merged if item.url}
+        for grounding in grounding_items:
+            if grounding.url not in used_urls:
+                merged.append(grounding)
 
+    if max_items is not None:
+        return merged[:max_items]
     return merged
+
+
+def _merge_research_items(
+    existing: list[dict],
+    new_items: list[ResearchItem],
+) -> list[dict]:
+    result: list[dict] = []
+    seen_urls: set[str] = set()
+
+    for item in existing:
+        normalized = dict(item)
+        normalized.setdefault("concept", "")
+        normalized.setdefault("is_new", False)
+        result.append(normalized)
+        if normalized.get("url"):
+            seen_urls.add(normalized["url"])
+
+    for item in new_items:
+        if item.url and item.url in seen_urls:
+            continue
+        result.append(item.model_dump())
+        if item.url:
+            seen_urls.add(item.url)
+
+    return result
+
+
+def _fetch_follow_up_research(
+    client,
+    *,
+    gemini_file,
+    llm: dict,
+    user_prompt: str,
+    existing_items: list[dict],
+) -> list[ResearchItem]:
+    chat_research_prompt = llm.get("chat_research_prompt", "").strip()
+    if not chat_research_prompt:
+        return []
+
+    concepts: list[str] = []
+    for item in existing_items:
+        label = (item.get("concept") or item.get("title") or "").strip()
+        if label:
+            concepts.append(label)
+
+    existing_str = "\n".join(f"- {concept}" for concept in concepts) or "אין עדיין"
+
+    research_prompt = (
+        chat_research_prompt.replace("{topic}", user_prompt).replace("{existing}", existing_str)
+    )
+
+    response = _generate_research_with_search(
+        client,
+        gemini_file,
+        research_prompt,
+        model=llm["model"],
+        max_wait=llm["max_wait_seconds"],
+        delay=llm["retry_delay_seconds"],
+    )
+    return _parse_research_response(response, is_new=True, max_items=2)
 
 
 def _build_analysis_output(
@@ -355,7 +428,13 @@ def _format_analysis_context(analysis: dict | None) -> str:
     research = analysis.get("further_research") or {}
     items = research.get("items") or []
     if items:
-        research_lines = [f"- {item.get('title', 'מקור')}: {item.get('text', '')}" for item in items]
+        research_lines = []
+        for item in items:
+            concept = item.get("concept", "")
+            prefix = f"[{concept}] " if concept else ""
+            research_lines.append(
+                f"- {prefix}{item.get('title', 'מקור')}: {item.get('text', '')}"
+            )
         parts.append("מחקר נוסף:\n" + "\n".join(research_lines))
 
     quiz = analysis.get("quiz") or []
@@ -527,6 +606,23 @@ def invoke_chat(
             )
         else:
             updated_analysis = None
+
+        if updated_analysis:
+            existing_items = (updated_analysis.get("further_research") or {}).get("items") or []
+            new_research = _fetch_follow_up_research(
+                client,
+                gemini_file=gemini_file,
+                llm=llm,
+                user_prompt=prompt,
+                existing_items=existing_items,
+            )
+            if new_research:
+                merged_items = _merge_research_items(existing_items, new_research)
+                further = updated_analysis.get("further_research") or {}
+                updated_analysis["further_research"] = {
+                    "heading": further.get("heading") or "מחקר נוסף",
+                    "items": merged_items,
+                }
 
         return {
             "reply": chat_reply,

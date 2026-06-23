@@ -350,9 +350,14 @@ export default function Home() {
 
                   {tab === "research" && (
                     <div className="space-y-4">
-                      <h2 className="text-lg font-medium">
-                        {analysis.further_research.heading}
-                      </h2>
+                      <div>
+                        <h2 className="text-lg font-medium">
+                          {analysis.further_research.heading}
+                        </h2>
+                        <p className="text-sm text-white/50 mt-1">
+                          מקורות נבחרים עם הסברים — מושגים חשובים ללמידה מעמיקה
+                        </p>
+                      </div>
                       <ResearchItemsList furtherResearch={analysis.further_research} />
                     </div>
                   )}
