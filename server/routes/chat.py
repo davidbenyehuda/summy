@@ -13,6 +13,7 @@ class ChatHistoryBody(BaseModel):
     messages: list[dict]
     analysis: dict | None = None
     documentTitle: str | None = None
+    fileUrl: str | None = None
     isImageDocument: bool = False
     quizAnswers: dict = {}
     quizSubmitted: bool = False

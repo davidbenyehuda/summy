@@ -169,10 +169,16 @@ const integrations = {
       return apiFetch('/integrations/analyze', { method: 'POST', body: form });
     },
 
-    async InvokeLLM({ prompt }) {
+    async InvokeLLM({ prompt, messages = [], analysis = null, file_url = null, document_title = null }) {
       return apiFetch('/integrations/llm', {
         method: 'POST',
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({
+          prompt,
+          messages,
+          analysis,
+          file_url,
+          document_title,
+        }),
       });
     },
   },

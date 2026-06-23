@@ -11,7 +11,7 @@ from ..config import ROOT, config
 from ..deps import get_current_user_id
 from ..schemas.document_analysis import AnalyzeDocumentResponse, DocumentAnalysisOutput
 from ..schemas.uploaded_file import InMemoryUpload
-from ..services.llm import analyze_document
+from ..services.llm import analyze_document, invoke_chat
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
@@ -20,20 +20,19 @@ uploads_dir.mkdir(parents=True, exist_ok=True)
 results_dir = uploads_dir / "results"
 results_dir.mkdir(parents=True, exist_ok=True)
 
-GLOSSARY = {
-    "גלוקוז": "גלוקוז הוא סוכר פשוט שהצמח מייצר בפוטוסינתזה ומשמש כמקור האנרגיה העיקרי לצמיחה.",
-    "חמצן": "חמצן הוא גז שמשתחרר כתוצר לוואי של פיצול מולקולות המים בתגובות האור.",
-    "כלורופיל": "כלורופיל הוא הפיגמנט הירוק שסופג אור שמש ומאפשר לצמח להתחיל את תהליך הפוטוסינתזה.",
-    "ATP": "ATP הוא מולקולה שמאחסנת אנרגיה זמנית שהצמח משתמש בה לבניית גלוקוז.",
-    "NADPH": "NADPH מספק אלקטרונים ואנרגיה לשלב קיבוע הפחמן במחזור קלווין.",
-    "מחזור קלווין": "מחזור קלווין הוא סדרת תגובות כימיות שבהן CO₂ מומר לגלוקוז בעזרת ATP ו-NADPH.",
-    "סטרומה": "הסטרומה היא הנוזל שבתוך הכלורופלסט שבו מתרחש מחזור קלווין.",
-    "כלורופלסט": "כלורופלסט הוא אברון בתוך תא הצמח שבו מתרחשת הפוטוסינתזה.",
-}
+class ChatMessage(BaseModel):
+    role: str
+    content: str | None = None
+    type: str | None = None
+    imageUrl: str | None = None
 
 
 class LlmBody(BaseModel):
-    prompt: str | None = None
+    prompt: str
+    messages: list[ChatMessage] = []
+    analysis: dict | None = None
+    file_url: str | None = None
+    document_title: str | None = None
 
 
 class ExtractBody(BaseModel):
@@ -191,19 +190,30 @@ async def analyze_uploaded_document(
 @router.post("/llm")
 def invoke_llm(
     body: LlmBody,
-    _user_id: str = Depends(get_current_user_id),
+    user_id: str = Depends(get_current_user_id),
 ):
-    prompt = body.prompt or ""
-    term_match = re.search(r'term "([^"]+)"', prompt, re.IGNORECASE)
-    term = term_match.group(1) if term_match else None
+    upload = None
+    if body.file_url:
+        try:
+            file_path = _resolve_user_file(user_id, body.file_url)
+            upload = InMemoryUpload(
+                filename=file_path.name,
+                data=file_path.read_bytes(),
+            )
+        except HTTPException:
+            raise
+        except OSError as exc:
+            raise HTTPException(status_code=404, detail="Uploaded file not found") from exc
 
-    if term and term in GLOSSARY:
-        return GLOSSARY[term]
-
-    if term:
-        return (
-            f"{term} הוא מושג מרכזי בביולוגיה של הצמחים. בפוטוסינתזה, מושגים כמו "
-            f"{term} עוזרים להבין איך אור הופך לאנרגיה כימית."
+    try:
+        return invoke_chat(
+            prompt=body.prompt,
+            messages=[message.model_dump() for message in body.messages],
+            analysis=body.analysis,
+            upload=upload,
+            document_title=body.document_title,
         )
-
-    return "הסבר קצר: פוטוסינתזה היא תהליך שבו צמחים ממירים אור, מים ו-CO₂ לגלוקוז וחמצן."
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

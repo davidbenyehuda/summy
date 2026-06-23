@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Loader2 } from "lucide-react";
 import db from "@/api/client";
 import TopNav from "../components/dashboard/TopNav";
 import DocumentPreview from "../components/dashboard/DocumentPreview";
 import ResearchItemsList from "../components/dashboard/ResearchItemsList";
+import MarkdownContent from "../components/dashboard/MarkdownContent";
 import BottomActionBar from "../components/dashboard/BottomActionBar";
 
 const DEFAULT_MESSAGES = [
@@ -18,15 +20,20 @@ export default function Home() {
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [analysis, setAnalysis] = useState(null);
   const [documentTitle, setDocumentTitle] = useState(null);
+  const [fileUrl, setFileUrl] = useState(null);
   const [isImageDocument, setIsImageDocument] = useState(false);
   const [historyReady, setHistoryReady] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [analysisRevision, setAnalysisRevision] = useState(0);
 
   const saveTimerRef = useRef(null);
+  const sendingRef = useRef(false);
 
   const applyHistory = useCallback((history) => {
     setMessages(history.messages?.length ? history.messages : DEFAULT_MESSAGES);
     setAnalysis(history.analysis || null);
     setDocumentTitle(history.documentTitle || null);
+    setFileUrl(history.fileUrl || null);
     setIsImageDocument(Boolean(history.isImageDocument));
     setQuiz(history.analysis?.quiz || []);
     setQuizAnswers(history.quizAnswers || {});
@@ -65,7 +72,7 @@ export default function Home() {
 
   const persistHistory = useCallback(
     (overrides = {}) => {
-      if (!historyReady) return;
+      if (!historyReady || sendingRef.current) return;
 
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(async () => {
@@ -77,6 +84,7 @@ export default function Home() {
             messages: overrides.messages ?? messages,
             analysis: overrides.analysis ?? analysis,
             documentTitle: overrides.documentTitle ?? documentTitle,
+            fileUrl: overrides.fileUrl ?? fileUrl,
             isImageDocument: overrides.isImageDocument ?? isImageDocument,
             quizAnswers: overrides.quizAnswers ?? quizAnswers,
             quizSubmitted: overrides.quizSubmitted ?? quizSubmitted,
@@ -91,6 +99,7 @@ export default function Home() {
       messages,
       analysis,
       documentTitle,
+      fileUrl,
       isImageDocument,
       quizAnswers,
       quizSubmitted,
@@ -106,14 +115,17 @@ export default function Home() {
     const nextAnalysis = result.output;
     const nextIsImage = Boolean(result.isImage);
     const nextDocumentTitle = nextIsImage ? null : result.title;
+    const nextFileUrl = result.file_url || null;
     const nextQuiz = result.output.quiz || [];
 
     setAnalysis(nextAnalysis);
     setIsImageDocument(nextIsImage);
     setDocumentTitle(nextDocumentTitle);
+    setFileUrl(nextFileUrl);
     setQuiz(nextQuiz);
     setQuizAnswers({});
     setQuizSubmitted(false);
+    setAnalysisRevision((value) => value + 1);
 
     let nextMessages;
     if (nextIsImage) {
@@ -135,32 +147,93 @@ export default function Home() {
       messages: nextMessages,
       analysis: nextAnalysis,
       documentTitle: nextDocumentTitle,
+      fileUrl: nextFileUrl,
       isImageDocument: nextIsImage,
       quizAnswers: {},
       quizSubmitted: false,
     });
   };
 
+  const applyAnalysisUpdate = useCallback((nextAnalysis) => {
+    if (!nextAnalysis) return;
+
+    setAnalysis((prev) => {
+      const hasValidQuiz =
+        nextAnalysis.quiz?.length >= 4 &&
+        nextAnalysis.quiz.every(
+          (q) => Array.isArray(q.options) && q.options.length === 4
+        );
+      const merged = {
+        ...nextAnalysis,
+        quiz: hasValidQuiz ? nextAnalysis.quiz : prev?.quiz || [],
+      };
+      setQuiz(merged.quiz);
+      return merged;
+    });
+    setQuizAnswers({});
+    setQuizSubmitted(false);
+    setAnalysisRevision((value) => value + 1);
+  }, []);
+
   const sendMessage = async () => {
-    if (!input.trim() || !analysis) return;
+    if (!input.trim() || !analysis || sending) return;
 
     const userMessage = input.trim();
     setInput("");
     const withUser = [...messages, { role: "user", content: userMessage }];
     setMessages(withUser);
+    sendingRef.current = true;
+    setSending(true);
 
     try {
-      const reply = await db.integrations.Core.InvokeLLM({ prompt: userMessage });
+      const result = await db.integrations.Core.InvokeLLM({
+        prompt: userMessage,
+        messages: withUser,
+        analysis,
+        file_url: fileUrl,
+        document_title: documentTitle || analysis.title,
+      });
+
+      const reply =
+        typeof result === "string"
+          ? result
+          : result?.reply || "לא הצלחתי ליצור תשובה.";
       const withReply = [...withUser, { role: "assistant", content: reply }];
       setMessages(withReply);
-      persistHistory({ messages: withReply });
+
+      if (result?.analysis) {
+        applyAnalysisUpdate(result.analysis);
+      }
+
+      sendingRef.current = false;
+      await db.integrations.Chat.saveHistory({
+        messages: withReply,
+        analysis: result?.analysis || analysis,
+        documentTitle,
+        fileUrl,
+        isImageDocument,
+        quizAnswers: result?.analysis ? {} : quizAnswers,
+        quizSubmitted: result?.analysis ? false : quizSubmitted,
+      }).catch(() => {});
     } catch {
       const withError = [
         ...withUser,
         { role: "assistant", content: "לא הצלחתי לענות כרגע. נסה שוב." }
       ];
       setMessages(withError);
-      persistHistory({ messages: withError });
+      sendingRef.current = false;
+      await db.integrations.Chat.saveHistory({
+        messages: withError,
+        analysis,
+        documentTitle,
+        fileUrl,
+        isImageDocument,
+        quizAnswers,
+        quizSubmitted,
+      }).catch(() => {});
+    } finally {
+      sendingRef.current = false;
+      setSending(false);
     }
   };
 
@@ -170,6 +243,7 @@ export default function Home() {
     setMessages(DEFAULT_MESSAGES);
     setAnalysis(null);
     setDocumentTitle(null);
+    setFileUrl(null);
     setIsImageDocument(false);
     setQuiz([]);
     setQuizAnswers({});
@@ -199,10 +273,13 @@ export default function Home() {
     persistHistory({ quizSubmitted: true });
   };
 
-  const hasMultipleChoiceQuiz = quiz.some((q) => q.options?.length);
+  const displayQuiz = analysis?.quiz?.length ? analysis.quiz : quiz;
+  const isGradableQuiz =
+    displayQuiz.length >= 4 &&
+    displayQuiz.every((q) => Array.isArray(q.options) && q.options.length === 4);
 
-  const score = hasMultipleChoiceQuiz
-    ? quiz.reduce((acc, q, i) => {
+  const score = isGradableQuiz
+    ? displayQuiz.reduce((acc, q, i) => {
         return quizAnswers[i] === q.correct ? acc + 1 : acc;
       }, 0)
     : 0;
@@ -237,8 +314,16 @@ export default function Home() {
             ))}
           </div>
 
-          <div className="flex-1 overflow-y-auto px-10 py-10">
-            <div className="max-w-3xl mx-auto text-right">
+          <div className="flex-1 overflow-y-auto px-10 py-10 relative">
+            {sending && (
+              <div className="absolute inset-0 z-10 bg-[#0b0c10]/70 backdrop-blur-[1px] flex items-center justify-center">
+                <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-[#0f1117] px-4 py-3 text-sm text-white/80">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  מחשב תשובה ומעדכן את הלשוניות...
+                </div>
+              </div>
+            )}
+            <div className="max-w-3xl mx-auto text-right" key={analysisRevision}>
               {!analysis ? (
                 <div className="text-white/50 text-center py-20">
                   <h1 className="text-2xl font-bold mb-3">העלה מסמך כדי להתחיל</h1>
@@ -253,14 +338,14 @@ export default function Home() {
                   )}
 
                   {tab === "text" && (
-                    <>
-                      <h2 className="text-lg font-medium mb-3">
+                    <div className="space-y-3">
+                      <h2 className="text-lg font-medium">
                         {analysis.text_page.heading}
                       </h2>
-                      <p className="text-white/70 whitespace-pre-wrap">
+                      <MarkdownContent className="text-white/80">
                         {analysis.text_page.body}
-                      </p>
-                    </>
+                      </MarkdownContent>
+                    </div>
                   )}
 
                   {tab === "research" && (
@@ -274,8 +359,10 @@ export default function Home() {
 
                   {tab === "summary" && (
                     <div className="bg-white/5 p-5 rounded-xl border border-white/10">
-                      <h2 className="text-lg mb-2">תקציר</h2>
-                      <p className="text-white/70">{analysis.short_explanation}</p>
+                      <h2 className="text-lg mb-3">תקציר</h2>
+                      <MarkdownContent className="text-white/80">
+                        {analysis.short_explanation}
+                      </MarkdownContent>
                     </div>
                   )}
 
@@ -283,27 +370,30 @@ export default function Home() {
                     <div className="space-y-6">
                       <h2 className="text-xl font-semibold">בחן את עצמך</h2>
 
-                      {quiz.length === 0 ? (
+                      {!isGradableQuiz ? (
                         <div className="text-white/50 text-center py-10">
-                          אין שאלות בחן למסמך זה.
+                          {displayQuiz.length > 0
+                            ? "המבחן נטען. העלה מסמך מחדש או שלח שאלה בצ'אט ליצירת מבחן מחדש."
+                            : "אין שאלות בחן למסמך זה."}
                         </div>
                       ) : (
                         <>
-                          {quiz.map((q, i) => (
+                          {displayQuiz.map((q, i) => (
                             <div
-                              key={i}
+                              key={`${i}-${q.question?.slice(0, 40)}`}
                               className="bg-white/5 p-4 rounded-xl border border-white/10"
                             >
                               <p className="mb-3 font-medium">
                                 {i + 1}. {q.question}
                               </p>
 
-                              {q.options?.length > 0 && (
                               <div className="space-y-2">
                                 {q.options.map((opt, j) => (
                                   <button
                                     key={j}
-                                    onClick={() => handleSelect(i, j)}
+                                    type="button"
+                                    onClick={() => !quizSubmitted && handleSelect(i, j)}
+                                    disabled={quizSubmitted}
                                     className={`w-full text-right px-3 py-2 rounded-lg text-sm border transition ${
                                       quizAnswers[i] === j && quizSubmitted && j === q.correct
                                         ? "bg-green-500 text-black border-green-400"
@@ -320,27 +410,25 @@ export default function Home() {
                                   </button>
                                 ))}
                               </div>
-                              )}
                             </div>
                           ))}
 
-                          {hasMultipleChoiceQuiz && (
-                          <button
-                            onClick={submitQuiz}
-                            className="bg-white text-black px-5 py-2 rounded-xl"
-                          >
-                            הגש מבחן
-                          </button>
-                          )}
-
-                          {hasMultipleChoiceQuiz && quizSubmitted && (
-                            <div className="bg-green-500/10 border border-green-500/30 p-5 rounded-xl">
-                              <h3 className="text-lg font-semibold mb-2">
-                                הציון שלך: {score} / {quiz.length}
+                          {!quizSubmitted ? (
+                            <button
+                              type="button"
+                              onClick={submitQuiz}
+                              className="bg-white text-black px-5 py-2 rounded-xl"
+                            >
+                              בדוק תוצאות
+                            </button>
+                          ) : (
+                            <div className="bg-green-500/10 border border-green-500/30 p-5 rounded-xl space-y-4">
+                              <h3 className="text-lg font-semibold">
+                                הציון שלך: {score} / {displayQuiz.length}
                               </h3>
 
                               <div className="space-y-3 text-sm">
-                                {quiz.map((q, i) => (
+                                {displayQuiz.map((q, i) => (
                                   <div
                                     key={i}
                                     className="border-t border-white/10 pt-2"
@@ -355,6 +443,18 @@ export default function Home() {
                                   </div>
                                 ))}
                               </div>
+
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setQuizSubmitted(false);
+                                  setQuizAnswers({});
+                                  persistHistory({ quizSubmitted: false, quizAnswers: {} });
+                                }}
+                                className="text-sm text-white/70 hover:text-white underline"
+                              >
+                                נסה שוב
+                              </button>
                             </div>
                           )}
                         </>
@@ -368,7 +468,7 @@ export default function Home() {
         </div>
 
         <div className="w-[380px] flex flex-col bg-[#0f1117] border-r border-white/10">
-          <div className="p-3 border-b border-white/10 shrink-0 max-h-[40vh] overflow-hidden flex flex-col">
+          <div className="p-3 border-b border-white/10 shrink-0">
             <DocumentPreview onAnalyzed={handleAnalyzed} />
           </div>
 
@@ -406,6 +506,12 @@ export default function Home() {
                 )}
               </div>
             ))}
+            {sending && (
+              <div className="mr-auto max-w-[85%] px-4 py-3 rounded-2xl text-sm bg-white/10 text-white/70 flex items-center gap-2">
+                <Loader2 className="w-4 h-4 animate-spin shrink-0" />
+                מחשב תשובה...
+              </div>
+            )}
           </div>
 
           <div className="p-3 border-t border-white/10 flex gap-2">
@@ -414,15 +520,15 @@ export default function Home() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendMessage()}
               placeholder={analysis ? "שאל על המסמך..." : "העלה מסמך כדי להתחיל..."}
-              disabled={!analysis}
+              disabled={!analysis || sending}
               className="flex-1 bg-white/5 px-3 py-2 rounded-lg text-sm disabled:opacity-50"
             />
             <button
               onClick={sendMessage}
-              disabled={!analysis}
+              disabled={!analysis || sending}
               className="bg-white text-black px-3 py-2 rounded-lg text-sm disabled:opacity-50"
             >
-              שלח
+              {sending ? "שולח..." : "שלח"}
             </button>
           </div>
         </div>

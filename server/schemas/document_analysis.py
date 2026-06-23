@@ -8,6 +8,8 @@ class AnalysisSection(BaseModel):
 
 class QuizQuestion(BaseModel):
     question: str
+    options: list[str] = Field(min_length=4, max_length=4)
+    correct: int = Field(ge=0, le=3, description="0-based index of the correct option")
 
 
 class ResearchItem(BaseModel):

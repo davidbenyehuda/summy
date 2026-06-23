@@ -1,7 +1,7 @@
 import React, { useState, useRef } from "react";
 import { Upload, FileText, Loader2 } from "lucide-react";
 import db from "@/api/client";
-import ResearchItemsList, { formatResearchSummary } from "./ResearchItemsList";
+import { formatResearchSummary } from "./ResearchItemsList";
 
 function formatAnalysisSummary(output) {
   const { text_page, further_research, short_explanation } = output;
@@ -21,7 +21,6 @@ function isImageFile(file) {
 
 export default function DocumentPreview({ onAnalyzed }) {
   const [uploadedFile, setUploadedFile] = useState(null);
-  const [analysisOutput, setAnalysisOutput] = useState(null);
   const [imageUploaded, setImageUploaded] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
@@ -46,7 +45,6 @@ export default function DocumentPreview({ onAnalyzed }) {
         const isImage = isImageFile(file);
         setImageUploaded(isImage);
         setUploadedFile(isImage ? null : file);
-        setAnalysisOutput(isImage ? null : result.output);
         onAnalyzed?.({ ...result, file, isImage });
 
         const me = await db.auth.me().catch(() => null);
@@ -75,7 +73,7 @@ export default function DocumentPreview({ onAnalyzed }) {
   };
 
   return (
-    <div className="h-full flex flex-col gap-3">
+    <div className="shrink-0">
       <div className="border border-dashed border-border rounded-xl p-4">
         <input
           ref={fileInputRef}
@@ -111,35 +109,12 @@ export default function DocumentPreview({ onAnalyzed }) {
           </p>
         )}
 
+        {imageUploaded && !uploading && (
+          <p className="text-xs mt-2 text-muted-foreground">התמונה הועלתה לצ&apos;אט</p>
+        )}
+
         {error && <p className="text-xs mt-2 text-destructive">{error}</p>}
       </div>
-
-      {!imageUploaded && (
-      <div className="flex-1 overflow-y-auto border border-border rounded-xl p-3 bg-card">
-        {!analysisOutput ? (
-          <p className="text-sm text-muted-foreground">
-            {uploading ? "מנתח את המסמך..." : "עדיין לא הועלה מסמך"}
-          </p>
-        ) : (
-          <div className="space-y-4">
-            <div>
-              <h3 className="font-semibold text-sm mb-1">{analysisOutput.text_page.heading}</h3>
-              <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                {analysisOutput.text_page.body}
-              </p>
-            </div>
-            <div className="rounded-lg bg-muted/40 p-3">
-              <h3 className="font-semibold text-xs mb-1">סיכום קצר</h3>
-              <p className="text-xs text-muted-foreground">{analysisOutput.short_explanation}</p>
-            </div>
-            <div>
-              <h3 className="font-semibold text-xs mb-2">{analysisOutput.further_research.heading}</h3>
-              <ResearchItemsList furtherResearch={analysisOutput.further_research} variant="light" />
-            </div>
-          </div>
-        )}
-      </div>
-      )}
     </div>
   );
 }
