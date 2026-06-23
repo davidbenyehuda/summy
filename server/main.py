@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import ROOT, config
 from .db import init_db
-from .routes import auth, entities, integrations
+from .routes import auth, chat, entities, integrations
 from .seed import log_dev_credentials, seed_dev_user
 
 uploads_dir = (ROOT / config["uploads"]["dir"]).resolve()
@@ -50,6 +50,7 @@ app.add_middleware(
 app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
 app.include_router(auth.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
 app.include_router(entities.router, prefix="/api")
 app.include_router(integrations.router, prefix="/api")
 

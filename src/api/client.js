@@ -150,6 +150,19 @@ const entities = new Proxy(
 
 const integrations = {
   Core: {
+    async UploadDocument({ file }) {
+      const form = new FormData();
+      form.append('file', file);
+      return apiFetch('/integrations/upload', { method: 'POST', body: form });
+    },
+
+    async ExtractDocument({ file_url }) {
+      return apiFetch('/integrations/extract', {
+        method: 'POST',
+        body: JSON.stringify({ file_url }),
+      });
+    },
+
     async AnalyzeDocument({ file }) {
       const form = new FormData();
       form.append('file', file);
@@ -161,6 +174,23 @@ const integrations = {
         method: 'POST',
         body: JSON.stringify({ prompt }),
       });
+    },
+  },
+
+  Chat: {
+    async getHistory() {
+      return apiFetch('/chat/history');
+    },
+
+    async saveHistory(data) {
+      return apiFetch('/chat/history', {
+        method: 'PUT',
+        body: JSON.stringify(data),
+      });
+    },
+
+    async clearHistory() {
+      return apiFetch('/chat/history', { method: 'DELETE' });
     },
   },
 };

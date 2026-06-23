@@ -41,6 +41,7 @@ def get_llm_config() -> dict:
         "api_key": api_key,
         "model": llm.get("model", "gemini-2.5-flash"),
         "analyze_prompt": llm.get("analyzePrompt", ""),
+        "research_prompt": llm.get("researchPrompt", ""),
         "max_wait_seconds": int(llm.get("maxWaitSeconds", 120)),
         "retry_delay_seconds": int(llm.get("retryDelaySeconds", 5)),
     }

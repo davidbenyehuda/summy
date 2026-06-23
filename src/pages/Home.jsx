@@ -1,13 +1,15 @@
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import db from "@/api/client";
 import TopNav from "../components/dashboard/TopNav";
 import DocumentPreview from "../components/dashboard/DocumentPreview";
 import BottomActionBar from "../components/dashboard/BottomActionBar";
 
+const DEFAULT_MESSAGES = [
+  { role: "assistant", content: "העלה מסמך ואני אנתח אותו עבורך." }
+];
+
 export default function Home() {
-  const [messages, setMessages] = useState([
-    { role: "assistant", content: "העלה מסמך ואני אנתח אותו עבורך." }
-  ]);
+  const [messages, setMessages] = useState(DEFAULT_MESSAGES);
   const [input, setInput] = useState("");
   const [tab, setTab] = useState("text");
   const [quiz, setQuiz] = useState([]);
@@ -15,18 +17,127 @@ export default function Home() {
   const [quizSubmitted, setQuizSubmitted] = useState(false);
   const [analysis, setAnalysis] = useState(null);
   const [documentTitle, setDocumentTitle] = useState(null);
+  const [isImageDocument, setIsImageDocument] = useState(false);
+  const [historyReady, setHistoryReady] = useState(false);
+
+  const saveTimerRef = useRef(null);
+
+  const applyHistory = useCallback((history) => {
+    setMessages(history.messages?.length ? history.messages : DEFAULT_MESSAGES);
+    setAnalysis(history.analysis || null);
+    setDocumentTitle(history.documentTitle || null);
+    setIsImageDocument(Boolean(history.isImageDocument));
+    setQuiz(history.analysis?.quiz || []);
+    setQuizAnswers(history.quizAnswers || {});
+    setQuizSubmitted(Boolean(history.quizSubmitted));
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadHistory() {
+      try {
+        const authed = await db.auth.isAuthenticated();
+        if (!authed || cancelled) {
+          setHistoryReady(true);
+          return;
+        }
+
+        const history = await db.integrations.Chat.getHistory();
+        if (!cancelled) {
+          applyHistory(history);
+        }
+      } catch {
+        // keep defaults when history cannot be loaded
+      } finally {
+        if (!cancelled) {
+          setHistoryReady(true);
+        }
+      }
+    }
+
+    loadHistory();
+    return () => {
+      cancelled = true;
+    };
+  }, [applyHistory]);
+
+  const persistHistory = useCallback(
+    (overrides = {}) => {
+      if (!historyReady) return;
+
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(async () => {
+        try {
+          const authed = await db.auth.isAuthenticated();
+          if (!authed) return;
+
+          await db.integrations.Chat.saveHistory({
+            messages: overrides.messages ?? messages,
+            analysis: overrides.analysis ?? analysis,
+            documentTitle: overrides.documentTitle ?? documentTitle,
+            isImageDocument: overrides.isImageDocument ?? isImageDocument,
+            quizAnswers: overrides.quizAnswers ?? quizAnswers,
+            quizSubmitted: overrides.quizSubmitted ?? quizSubmitted,
+          });
+        } catch {
+          // ignore save errors to keep chat responsive
+        }
+      }, 500);
+    },
+    [
+      historyReady,
+      messages,
+      analysis,
+      documentTitle,
+      isImageDocument,
+      quizAnswers,
+      quizSubmitted,
+    ]
+  );
+
+  useEffect(() => {
+    persistHistory();
+    return () => clearTimeout(saveTimerRef.current);
+  }, [persistHistory]);
 
   const handleAnalyzed = (result) => {
-    setAnalysis(result.output);
-    setDocumentTitle(result.title);
-    setQuiz(result.output.quiz || []);
+    const nextAnalysis = result.output;
+    const nextIsImage = Boolean(result.isImage);
+    const nextDocumentTitle = nextIsImage ? null : result.title;
+    const nextQuiz = result.output.quiz || [];
+
+    setAnalysis(nextAnalysis);
+    setIsImageDocument(nextIsImage);
+    setDocumentTitle(nextDocumentTitle);
+    setQuiz(nextQuiz);
     setQuizAnswers({});
     setQuizSubmitted(false);
-    setMessages((prev) => [
-      ...prev,
-      { role: "user", content: `הועלה קובץ: ${result.title}` },
-      { role: "assistant", content: "המסמך נותח בהצלחה. אפשר לשאול עליו כאן." }
-    ]);
+
+    let nextMessages;
+    if (nextIsImage) {
+      nextMessages = [
+        ...messages,
+        { role: "user", type: "image", imageUrl: result.file_url },
+        { role: "assistant", content: "המסמך נותח בהצלחה. אפשר לשאול עליו כאן." }
+      ];
+    } else {
+      nextMessages = [
+        ...messages,
+        { role: "user", content: `הועלה קובץ: ${result.title}` },
+        { role: "assistant", content: "המסמך נותח בהצלחה. אפשר לשאול עליו כאן." }
+      ];
+    }
+
+    setMessages(nextMessages);
+    persistHistory({
+      messages: nextMessages,
+      analysis: nextAnalysis,
+      documentTitle: nextDocumentTitle,
+      isImageDocument: nextIsImage,
+      quizAnswers: {},
+      quizSubmitted: false,
+    });
   };
 
   const sendMessage = async () => {
@@ -34,28 +145,57 @@ export default function Home() {
 
     const userMessage = input.trim();
     setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
+    const withUser = [...messages, { role: "user", content: userMessage }];
+    setMessages(withUser);
 
     try {
       const reply = await db.integrations.Core.InvokeLLM({ prompt: userMessage });
-      setMessages((prev) => [...prev, { role: "assistant", content: reply }]);
+      const withReply = [...withUser, { role: "assistant", content: reply }];
+      setMessages(withReply);
+      persistHistory({ messages: withReply });
     } catch {
-      setMessages((prev) => [
-        ...prev,
+      const withError = [
+        ...withUser,
         { role: "assistant", content: "לא הצלחתי לענות כרגע. נסה שוב." }
-      ]);
+      ];
+      setMessages(withError);
+      persistHistory({ messages: withError });
+    }
+  };
+
+  const clearChat = async () => {
+    clearTimeout(saveTimerRef.current);
+
+    setMessages(DEFAULT_MESSAGES);
+    setAnalysis(null);
+    setDocumentTitle(null);
+    setIsImageDocument(false);
+    setQuiz([]);
+    setQuizAnswers({});
+    setQuizSubmitted(false);
+    setInput("");
+
+    try {
+      const authed = await db.auth.isAuthenticated();
+      if (authed) {
+        await db.integrations.Chat.clearHistory();
+      }
+    } catch {
+      // local state is already cleared
     }
   };
 
   const handleSelect = (qIndex, optionIndex) => {
-    setQuizAnswers((prev) => ({
-      ...prev,
-      [qIndex]: optionIndex
-    }));
+    setQuizAnswers((prev) => {
+      const next = { ...prev, [qIndex]: optionIndex };
+      persistHistory({ quizAnswers: next });
+      return next;
+    });
   };
 
   const submitQuiz = () => {
     setQuizSubmitted(true);
+    persistHistory({ quizSubmitted: true });
   };
 
   const hasMultipleChoiceQuiz = quiz.some((q) => q.options?.length);
@@ -105,9 +245,11 @@ export default function Home() {
                 </div>
               ) : (
                 <>
-                  <h1 className="text-3xl font-bold mb-6">
-                    {documentTitle || analysis.title}
-                  </h1>
+                  {!isImageDocument && (
+                    <h1 className="text-3xl font-bold mb-6">
+                      {documentTitle || analysis.title}
+                    </h1>
+                  )}
 
                   {tab === "text" && (
                     <>
@@ -231,17 +373,38 @@ export default function Home() {
             <DocumentPreview onAnalyzed={handleAnalyzed} />
           </div>
 
+          <div className="flex items-center justify-between px-4 py-2 border-b border-white/10">
+            <span className="text-xs text-white/50">צ&apos;אט</span>
+            <button
+              type="button"
+              onClick={clearChat}
+              className="text-xs text-white/60 hover:text-white"
+            >
+              נקה צ&apos;אט
+            </button>
+          </div>
+
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
             {messages.map((m, i) => (
               <div
                 key={i}
-                className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm ${
-                  m.role === "user"
-                    ? "ml-auto bg-white text-black"
-                    : "mr-auto bg-white/10"
+                className={`max-w-[85%] rounded-2xl text-sm ${
+                  m.type === "image"
+                    ? "ml-auto p-1"
+                    : m.role === "user"
+                    ? "ml-auto px-4 py-3 bg-white text-black"
+                    : "mr-auto px-4 py-3 bg-white/10"
                 }`}
               >
-                {m.content}
+                {m.type === "image" ? (
+                  <img
+                    src={m.imageUrl}
+                    alt=""
+                    className="max-w-full max-h-64 rounded-xl object-contain"
+                  />
+                ) : (
+                  m.content
+                )}
               </div>
             ))}
           </div>

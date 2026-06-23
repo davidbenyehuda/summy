@@ -11,9 +11,17 @@ function formatAnalysisSummary(output) {
   ].join("\n\n");
 }
 
+function isImageFile(file) {
+  return (
+    file?.type?.startsWith("image/") ||
+    /\.(png|jpe?g|gif|webp)$/i.test(file?.name || "")
+  );
+}
+
 export default function DocumentPreview({ onAnalyzed }) {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [analysisOutput, setAnalysisOutput] = useState(null);
+  const [imageUploaded, setImageUploaded] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -25,14 +33,20 @@ export default function DocumentPreview({ onAnalyzed }) {
 
     setUploading(true);
     setError(null);
+    setImageUploaded(false);
 
     try {
-      const result = await db.integrations.Core.AnalyzeDocument({ file });
+      const upload = await db.integrations.Core.UploadDocument({ file });
+      const result = await db.integrations.Core.ExtractDocument({
+        file_url: upload.file_url,
+      });
 
       if (result?.status === "success" && result.output) {
-        setUploadedFile(file);
-        setAnalysisOutput(result.output);
-        onAnalyzed?.(result);
+        const isImage = isImageFile(file);
+        setImageUploaded(isImage);
+        setUploadedFile(isImage ? null : file);
+        setAnalysisOutput(isImage ? null : result.output);
+        onAnalyzed?.({ ...result, file, isImage });
 
         const me = await db.auth.me().catch(() => null);
         if (me) {
@@ -89,7 +103,7 @@ export default function DocumentPreview({ onAnalyzed }) {
           )}
         </button>
 
-        {uploadedFile && (
+        {uploadedFile && !isImageFile(uploadedFile) && (
           <p className="text-xs mt-2 text-muted-foreground flex items-center gap-1.5">
             <FileText className="w-3.5 h-3.5" />
             {uploadedFile.name}
@@ -99,6 +113,7 @@ export default function DocumentPreview({ onAnalyzed }) {
         {error && <p className="text-xs mt-2 text-destructive">{error}</p>}
       </div>
 
+      {!imageUploaded && (
       <div className="flex-1 overflow-y-auto border border-border rounded-xl p-3 bg-card">
         {!analysisOutput ? (
           <p className="text-sm text-muted-foreground">
@@ -125,6 +140,7 @@ export default function DocumentPreview({ onAnalyzed }) {
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
