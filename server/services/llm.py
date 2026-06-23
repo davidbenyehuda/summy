@@ -10,7 +10,9 @@ from ..config import get_llm_config
 from ..schemas.document_analysis import (
     AnalysisSection,
     DocumentAnalysisOutput,
+    FurtherResearch,
     QuizQuestion,
+    ResearchItem,
 )
 from ..schemas.uploaded_file import InMemoryUpload
 
@@ -59,13 +61,13 @@ def analyze_document(*, upload: InMemoryUpload) -> DocumentAnalysisOutput:
             max_wait=llm["max_wait_seconds"],
             delay=llm["retry_delay_seconds"],
         )
-        research_body = _format_research_response(research_response)
+        research_items = _parse_research_response(research_response)
 
         return _build_analysis_output(
             title,
             analysis_text,
             file_size_kb,
-            research_body=research_body,
+            research_items=research_items,
         )
     finally:
         if gemini_file is not None:
@@ -98,16 +100,8 @@ def _parse_quiz_questions(quiz_text: str) -> list[QuizQuestion]:
     return questions
 
 
-def _format_research_response(response) -> str:
-    body = (response.text or "").strip()
-    sources = _extract_grounding_sources(response)
-    if sources:
-        body = f"{body}\n\n---\nמקורות:\n{sources}" if body else f"מקורות:\n{sources}"
-    return body or "לא נמצאו תוצאות חיפוש."
-
-
-def _extract_grounding_sources(response) -> str:
-    lines: list[str] = []
+def _grounding_items_from_metadata(response) -> list[ResearchItem]:
+    items: list[ResearchItem] = []
     seen: set[str] = set()
 
     for candidate in getattr(response, "candidates", None) or []:
@@ -124,9 +118,70 @@ def _extract_grounding_sources(response) -> str:
                 continue
             seen.add(uri)
             site_title = getattr(web, "title", None) or uri
-            lines.append(f"- {site_title}: {uri}")
+            items.append(
+                ResearchItem(
+                    title=site_title,
+                    text="מקור שנמצא בחיפוש באינטרנט.",
+                    url=uri,
+                )
+            )
 
-    return "\n".join(lines)
+    return items
+
+
+def _parse_research_response(response) -> list[ResearchItem]:
+    response_text = response.text or ""
+    items: list[ResearchItem] = []
+
+    research_block = _extract_tag(response_text, "research")
+    if research_block:
+        for match in re.finditer(
+            r"<item>\s*(.*?)\s*</item>",
+            research_block,
+            re.DOTALL | re.IGNORECASE,
+        ):
+            block = match.group(1)
+            title = _extract_tag(block, "title")
+            text = _extract_tag(block, "text")
+            url = _extract_tag(block, "url")
+            if title or text or url:
+                items.append(
+                    ResearchItem(
+                        title=title or "מקור",
+                        text=text or "מקור רלוונטי לנושא.",
+                        url=url,
+                    )
+                )
+
+    grounding_items = _grounding_items_from_metadata(response)
+
+    if not items:
+        return grounding_items
+
+    merged: list[ResearchItem] = []
+    for index, item in enumerate(items):
+        url = item.url
+        if not url and index < len(grounding_items):
+            url = grounding_items[index].url
+        if not url:
+            for grounding in grounding_items:
+                if grounding.title.lower() == item.title.lower():
+                    url = grounding.url
+                    break
+        merged.append(
+            ResearchItem(
+                title=item.title,
+                text=item.text,
+                url=url,
+            )
+        )
+
+    used_urls = {item.url for item in merged if item.url}
+    for grounding in grounding_items:
+        if grounding.url not in used_urls:
+            merged.append(grounding)
+
+    return merged
 
 
 def _build_analysis_output(
@@ -134,7 +189,7 @@ def _build_analysis_output(
     response_text: str,
     file_size_kb: int,
     *,
-    research_body: str,
+    research_items: list[ResearchItem],
 ) -> DocumentAnalysisOutput:
     analysis_body = _extract_tag(response_text, "analysis")
     abstract = _extract_tag(response_text, "abstract")
@@ -156,9 +211,9 @@ def _build_analysis_output(
             heading=f"ניתוח — {title}",
             body=analysis_body or f"לא ניתן לחלץ ניתוח עבור \"{title}\" ({file_size_kb} KB).",
         ),
-        further_research=AnalysisSection(
+        further_research=FurtherResearch(
             heading="מחקר נוסף",
-            body=research_body,
+            items=research_items,
         ),
         short_explanation=abstract or "לא נמצא סיכום.",
         quiz=_parse_quiz_questions(quiz_text),

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import db from "@/api/client";
 import TopNav from "../components/dashboard/TopNav";
 import DocumentPreview from "../components/dashboard/DocumentPreview";
+import ResearchItemsList from "../components/dashboard/ResearchItemsList";
 import BottomActionBar from "../components/dashboard/BottomActionBar";
 
 const DEFAULT_MESSAGES = [
@@ -263,14 +264,12 @@ export default function Home() {
                   )}
 
                   {tab === "research" && (
-                    <>
-                      <h2 className="text-lg font-medium mb-3">
+                    <div className="space-y-4">
+                      <h2 className="text-lg font-medium">
                         {analysis.further_research.heading}
                       </h2>
-                      <p className="text-white/70 whitespace-pre-wrap">
-                        {analysis.further_research.body}
-                      </p>
-                    </>
+                      <ResearchItemsList furtherResearch={analysis.further_research} />
+                    </div>
                   )}
 
                   {tab === "summary" && (

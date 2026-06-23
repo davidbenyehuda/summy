@@ -1,12 +1,13 @@
 import React, { useState, useRef } from "react";
 import { Upload, FileText, Loader2 } from "lucide-react";
 import db from "@/api/client";
+import ResearchItemsList, { formatResearchSummary } from "./ResearchItemsList";
 
 function formatAnalysisSummary(output) {
   const { text_page, further_research, short_explanation } = output;
   return [
     `${text_page.heading}\n${text_page.body}`,
-    `${further_research.heading}\n${further_research.body}`,
+    `${further_research.heading}\n${formatResearchSummary(further_research)}`,
     `סיכום קצר\n${short_explanation}`,
   ].join("\n\n");
 }
@@ -132,10 +133,8 @@ export default function DocumentPreview({ onAnalyzed }) {
               <p className="text-xs text-muted-foreground">{analysisOutput.short_explanation}</p>
             </div>
             <div>
-              <h3 className="font-semibold text-xs mb-1">{analysisOutput.further_research.heading}</h3>
-              <p className="text-xs text-muted-foreground whitespace-pre-wrap leading-relaxed">
-                {analysisOutput.further_research.body}
-              </p>
+              <h3 className="font-semibold text-xs mb-2">{analysisOutput.further_research.heading}</h3>
+              <ResearchItemsList furtherResearch={analysisOutput.further_research} variant="light" />
             </div>
           </div>
         )}

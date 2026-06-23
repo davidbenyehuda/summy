@@ -3,6 +3,7 @@ import db from '@/api/client';
 import React, { useState, useEffect } from "react";
 
 import TopNav from "@/components/dashboard/TopNav";
+import ResearchItemsList from "@/components/dashboard/ResearchItemsList";
 import { FileText, Trash2, Clock, ChevronLeft, Lightbulb, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Link } from "react-router-dom";
@@ -26,7 +27,7 @@ function HistoryAnalysisView({ output }) {
           <Search className="w-3.5 h-3.5 text-primary/70" />
           <p className="text-xs font-semibold text-foreground">{output.further_research.heading}</p>
         </div>
-        <p className="text-sm text-foreground/80 leading-relaxed whitespace-pre-wrap">{output.further_research.body}</p>
+        <ResearchItemsList furtherResearch={output.further_research} variant="light" />
       </div>
     </div>
   );
